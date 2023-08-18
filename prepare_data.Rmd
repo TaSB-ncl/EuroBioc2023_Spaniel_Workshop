@@ -5,20 +5,27 @@ date: '2023-07-28'
 ---
 
 ```{r setup, include=FALSE}
-### Bioconductor Packages:
-library(Voyager)
+## using a development version of Spaniel
+#devtools::install_github("TaSB-ncl/Spaniel",
+#                         ref = "bioconductor3.18")                   
+#
+
+library(Spaniel)
+
+## Bioconductor packages
 library(SpatialExperiment)
 library(SpatialFeatureExperiment)
 library(SingleCellExperiment)
-library(ggplot2)
 library(scater)
 library(scuttle)
 library(scran)
-library(stringr)
-library(patchwork)
 library(bluster)
+
+## Cran Packages
+library(tidyverse)
+library(tidyterra)
 library(rjson)
-library(terra)
+
 theme_set(theme_bw())
 
 ```
@@ -49,9 +56,9 @@ The sample metadata is summarised below:
 
 
 ```{r}
-dataDir <- "../testData/results"
+dataDir <- "testData/results"
 
-samples <- list.files( dataDir)
+samples <- list.files(dataDir)
 
 
 samples_short <- samples %>% 
@@ -102,7 +109,7 @@ sfe <- SpatialFeatureExperiment::read10xVisiumSFE(
 ## Add metadata and spot positions to data
 
 ```{r}
-sfe <- prepareSFE(sfe, sampleInfo)
+sfe <- Spaniel::prepareSFE(sfe, sampleInfo)
 ```
 
 
@@ -117,7 +124,7 @@ The annotation_images directory
 
 
 ```{r}
-annotationDir <- "C:/Users/nrq2/OneDrive - Newcastle University/Private_Spaniel/testData/annotation_images"
+annotationDir <- "testData/annotation_images/"
 annotations <- list.files(annotationDir) 
 annoInfo <- data.frame(sample_id = gsub("_.*", "", annotations) ,
   domain = gsub(".*_", "", annotations) %>% 
@@ -130,7 +137,9 @@ annoInfo <- data.frame(sample_id = gsub("_.*", "", annotations) ,
 
 
 ```{r}
-annoInfo$radiation_field <- ifelse(annoInfo$domain %in% c("left-ventricle", "right-ventricle"), yes = FALSE, no = TRUE)
+annoInfo$radiation_field <- ifelse(annoInfo$domain %in% c("left-ventricle", 
+                                                          "right-ventricle"), 
+                                   yes = FALSE, no = TRUE)
 ```
 
 ```{r}
@@ -143,7 +152,7 @@ The annotations can be loaded in and added to the sfe object using the spaniel f
 ## to fix
 ## factor the domain column so that domain is plotted on top
 
-sfe <- findAllDomains(sfe, annoInfo, annotationDir)
+sfe <- Spaniel::findAllDomains(sfe, annoInfo, annotationDir)
 ## create a column containing all domains
 sfe <- combineDomains(sfe, unique(annoInfo$domain))
 
@@ -163,12 +172,12 @@ sfe$radiation_field <- colData(sfe) %>%
 ## The domains can now be visualised on the histological data
 
 ```{r}
-p1 <-  spanielPlot_SFE(sfe,  
+p1 <-  Spaniel::spanielPlot_SFE(sfe,  
                  sample_id = "C01", 
                  plot_feat = "domain", ptSizeMin = 0, 
                  ptSizeMax = 2) 
 
-p2 <-  spanielPlot_SFE(sfe,  
+p2 <-  Spaniel::spanielPlot_SFE(sfe,  
                  sample_id = "C01", 
                  plot_feat = "radiation_field", ptSizeMin = 0, 
                  ptSizeMax = 2) 
@@ -220,10 +229,8 @@ A wrapper function to perform this work flow is implemented in Spaniel for conve
 However for a more comprehensive clustering analysis we recommend following the reading the Scran and Bluster documentation which describes each individual step in the analysis in more detail.
 
 ```{r}
-sfe_control <- sfe_control %>% preProcessandClusterSFE()
-sfe_rradiated <- sfe_control %>% preProcessandClusterSFE()
-
-
+sfe_control <- sfe_control %>% Spaniel::preProcessandClusterSFE()
+sfe_irradiated <- sfe_irradiated %>% Spaniel::preProcessandClusterSFE()
 ```
 
 ## Control data
@@ -232,12 +239,12 @@ Now we can look at the results of the data both by visualising the clusters on a
 
 ```{r}
 scater::plotUMAP(sfe_control, colour_by = "domain")
-p1 <- spanielPlot_SFE(sfe_control,  
+p1 <- Spaniel::spanielPlot_SFE(sfe_control,  
                  sample_id = "C01", 
                  plot_feat = "domain", ptSizeMin = 0, 
                  ptSizeMax = 2) 
 
-p2 <-spanielPlot_SFE(sfe_control,  
+p2 <- Spaniel::spanielPlot_SFE(sfe_control,  
                  sample_id = "C01", 
                  plot_feat = "clust_leiden_K_30", 
                  ptSizeMin = 0, 
@@ -249,35 +256,24 @@ p2 <-spanielPlot_SFE(sfe_control,
 ## irradiated data
 
 ```{r}
-scater::plotUMAP(sfe_irradiated[,sfe_irradiated$sample_id == "C06"], 
-                 colour_by = "domain")
+scater::plotUMAP(sfe_irradiated, colour_by = "domain")
+p1 <- Spaniel::spanielPlot_SFE(sfe_irradiated,  
+                 sample_id = "C06", 
+                 plot_feat = "domain", ptSizeMin = 0, 
+                 ptSizeMax = 2) 
 
+p2 <- Spaniel::spanielPlot_SFE(sfe_irradiated,  
+                 sample_id = "C06", 
+                 plot_feat = "clust_leiden_K_30", 
+                 ptSizeMin = 0, 
+                 ptSizeMax = 2) 
+
+```
+
+
+```{r}
 spanielPlot_SFE(sfe_irradiated,  
                  sample_id = "C06", 
-                 plot_feat = "domain") 
-
-
-
-scater::plotUMAP(sfe_irradiated, 
-                 colour_by = "clust")
-
-sfe_irradiated$clust_character <- sfe_irradiated$clust %>% as.character()
-spanielPlot_SFE(sfe_irradiated[,sample_id == "C06"],  
-                 sample_id = "C07", 
-                 plot_feat = "clust_character", 
-                 ptSizeMin = 0, 
-                 ptSizeMax = 2) 
-
-
-spanielPlot_SFE(sfe_irradiated,  
-                 sample_id = "C07", 
-                 plot_feat = "radiation_field", 
-                 ptSizeMin = 0, 
-                 ptSizeMax = 2) 
-
-
-spanielPlot_SFE(sfe_irradiated,  
-                 sample_id = "C07", 
                  plot_feat = "radiation_field", 
                  ptSizeMin = 0, 
                  ptSizeMax = 2) 
@@ -290,13 +286,13 @@ compare clusters with histological region, number of spots, consistency etc
 ## Wrap and Save Data
 
 ```{r}
-sfe_wrapped <- wrapSFE(sfe)
-saveRDS(sfe_wrapped, "../testData/rObjects/wrapped_sfe.rds")
+sfe_wrapped <- Spaniel::wrapSFE(sfe)
+saveRDS(sfe_wrapped, "rObjects/wrapped_sfe.rds")
 
 
-wrapSFE(sfe_control) %>% saveRDS( "../testData/rObjects/wrapped_sfe_control.rds")
+wrapSFE(sfe_control) %>% saveRDS( "rObjects/wrapped_sfe_control.rds")
 
-wrapSFE(sfe_irradiated) %>% saveRDS( "../testData/rObjects/wrapped_sfe_irradiated.rds")
+wrapSFE(sfe_irradiated) %>% saveRDS( "rObjects/wrapped_sfe_irradiated.rds")
 
 sfe_single <- sfe_control[,sfe_control$sample_id == "C01"]
 sfe_single %>% 
