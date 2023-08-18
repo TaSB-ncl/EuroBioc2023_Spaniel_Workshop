@@ -1,0 +1,328 @@
+---
+title: "Prepare Data"
+output: html_document
+date: '2023-07-28'
+---
+
+```{r setup, include=FALSE}
+### Bioconductor Packages:
+library(Voyager)
+library(SpatialExperiment)
+library(SpatialFeatureExperiment)
+library(SingleCellExperiment)
+library(ggplot2)
+library(scater)
+library(scuttle)
+library(scran)
+library(stringr)
+library(patchwork)
+library(bluster)
+library(rjson)
+library(terra)
+theme_set(theme_bw())
+
+```
+
+
+## Sample Metadata
+
+The data being used in this workflow is taken from "Spatial Gene Expression 
+Changes in the Mouse Heart After Base-Targeted Irradiation"
+
+Radiation cardiotoxicity (RC) is a clinically significant 
+adverse effect of treatment for patients with thoracic malignancies. 
+Clinical studies in lung cancer have indicated that heart substructures 
+are not uniformly radiosensitive, and that dose to the heart base drives RC.
+
+This was a pilot experiment to determine whether spatial transcriptomics 
+could provide useful insights in this context. 
+
+
+### Experimental Design:
+2 samples
+2 conditions - irradiated heart and control
+4 adjacent sections taken from each tissue block (sample)
+8 sections in total
+
+
+The sample metadata is summarised below:
+
+
+```{r}
+dataDir <- "../testData/results"
+
+samples <- list.files( dataDir)
+
+
+samples_short <- samples %>% 
+  gsub("results_", "", .)  %>% 
+  gsub("_Results", "", .)
+
+sample_id <- samples_short %>% 
+  gsub("_.*", "", .)  
+
+
+
+condition <- c(rep("Control", 4), rep("irradiated", 4))
+tissue <- c(c(rep("tissue1", 4), rep("tissue2", 4)))
+
+sampleInfo <- data.frame(Fname = samples, 
+          id = samples_short, 
+          condition, 
+          tissue, 
+          sample_id
+          )
+
+sampleInfo
+
+
+pathToTenXOuts <- file.path(dataDir, sampleInfo$Fname, "outs")
+```
+
+## Import the expression data
+
+The Voyager library Load in data and add in QC metrics
+
+More info at voyager
+
+
+```{r}
+sfe <- SpatialFeatureExperiment::read10xVisiumSFE(
+                                      dirs = pathToTenXOuts, 
+                                      samples = sampleInfo$Fname, 
+                                      sample_id = sampleInfo$sample_id, 
+                                      type = "sparse", 
+                                      data = "filtered", 
+                                      images = "hires",
+                                      zero.policy=TRUE)
+
+```
+
+
+## Add metadata and spot positions to data
+
+```{r}
+sfe <- prepareSFE(sfe, sampleInfo)
+```
+
+
+## Add Image annotations
+
+Different regions of the heart were annotated using the imaging software Amira. These could also be created using Photoshop or other imaging software. Each annotation was then exported as a separate layer. The annotation images are the same size as the high resolution images exported from 
+
+For example this image shows the left ventricle in sample "C01":
+![Left Ventricle sample C01](../testData/annotation_images/C01_left-ventricle.jpg)
+
+The annotation_images directory 
+
+
+```{r}
+annotationDir <- "C:/Users/nrq2/OneDrive - Newcastle University/Private_Spaniel/testData/annotation_images"
+annotations <- list.files(annotationDir) 
+annoInfo <- data.frame(sample_id = gsub("_.*", "", annotations) ,
+  domain = gsub(".*_", "", annotations) %>% 
+    gsub("\\.jpg", "", .),jpg = annotations) 
+```
+
+## Add radiation field
+
+![Radiation field = black rectangle; right atrium = yellow; left atrium = blue; great vessels = red; right ventricle = purple; left ventricle = green; atrioventricular valves = orange; central fibrous body = black; irradiated right ventricle = white; irradiated left ventricle = pink.](https://www.redjournal.org/cms/attachment/4177ae15-38f6-4470-b868-f5a460edf7ec/gr5.jpg)
+
+
+```{r}
+annoInfo$radiation_field <- ifelse(annoInfo$domain %in% c("left-ventricle", "right-ventricle"), yes = FALSE, no = TRUE)
+```
+
+```{r}
+annoInfo
+```
+
+The annotations can be loaded in and added to the sfe object using the spaniel function findAllDomains. This creates a separate for each histological domain in the colData of the object. The combineDomains function can then be used to combine the annotations into a single column named domain.
+
+```{r}
+## to fix
+## factor the domain column so that domain is plotted on top
+
+sfe <- findAllDomains(sfe, annoInfo, annotationDir)
+## create a column containing all domains
+sfe <- combineDomains(sfe, unique(annoInfo$domain))
+
+sfe$domain
+
+## add radiation field
+sfe$radiation_field <- colData(sfe) %>% 
+  data.frame() %>% 
+  left_join(annoInfo) %>% 
+  pull(radiation_field)
+
+```
+
+
+
+
+## The domains can now be visualised on the histological data
+
+```{r}
+p1 <-  spanielPlot_SFE(sfe,  
+                 sample_id = "C01", 
+                 plot_feat = "domain", ptSizeMin = 0, 
+                 ptSizeMax = 2) 
+
+p2 <-  spanielPlot_SFE(sfe,  
+                 sample_id = "C01", 
+                 plot_feat = "radiation_field", ptSizeMin = 0, 
+                 ptSizeMax = 2) 
+p1
+p2
+
+```
+
+## Sample QC
+
+
+Now that the image annotations are fully loaded in the transcriptomics data can be analysed.
+
+QC metrics about each spot can be calculated using the addPerCellQCMetrics function from scuttle package. By default the total genes per spot are calculated. Additional metrics such as the percentage of mitochondrial genes can be calculated. As this data is from mouse mitochondrial genes start with the prefix "mt-" and can be extracted based on pattern matching.
+
+```{r}
+is_mt <- str_detect(rowData(sfe)$symbol, "^mt-")
+sfe <- scuttle::addPerCellQCMetrics(sfe, subsets = list(mito = is_mt))
+```
+
+Spots where no genes are detected can be removed from the remainder of the analysis.
+
+```{r}
+filter <- sfe$detected > 0 & sfe$in_tissue
+sfe <- sfe[, filter]
+```
+
+
+
+## Split the data into control and irradiated
+
+Although we could now progress with the analysis using all samples it is often advisable to analyse each tissue sample or condition separately to begin with. This allows you to identify any section or sample which might be an outlier and should be removed from downstream analysis. For this workshop we example we will split the samples by condition:
+
+```{r}
+sfe_control <- sfe[,sfe$condition == "Control"]
+sfe_irradiated <- sfe[,sfe$condition == "irradiated"]
+
+```
+
+
+The filtered data can then be normalised using the the "logNormCounts" 
+function from scuttle  
+and the expression of selected genes can be viewed on the histological image.
+
+In this example we use a Leidan clustering algorithm as implemented in scran. Leidan is a community detection method. It is important to note that the K parameter is the number of nearest neighbors to use when creating the k nearest neighbor graph. k is related to the resolution of the clustering result, a bigger k will result in lower resolution and vice versa.
+
+
+A wrapper function to perform this work flow is implemented in Spaniel for convenience. 
+However for a more comprehensive clustering analysis we recommend following the reading the Scran and Bluster documentation which describes each individual step in the analysis in more detail.
+
+```{r}
+sfe_control <- sfe_control %>% preProcessandClusterSFE()
+sfe_rradiated <- sfe_control %>% preProcessandClusterSFE()
+
+
+```
+
+## Control data
+
+Now we can look at the results of the data both by visualising the clusters on a UMAP plot using plot functions from the scater package and within the spatial context of the tissue section using the spanielPlot function. 
+
+```{r}
+scater::plotUMAP(sfe_control, colour_by = "domain")
+p1 <- spanielPlot_SFE(sfe_control,  
+                 sample_id = "C01", 
+                 plot_feat = "domain", ptSizeMin = 0, 
+                 ptSizeMax = 2) 
+
+p2 <-spanielPlot_SFE(sfe_control,  
+                 sample_id = "C01", 
+                 plot_feat = "clust_leiden_K_30", 
+                 ptSizeMin = 0, 
+                 ptSizeMax = 2) 
+
+```
+
+
+## irradiated data
+
+```{r}
+scater::plotUMAP(sfe_irradiated[,sfe_irradiated$sample_id == "C06"], 
+                 colour_by = "domain")
+
+spanielPlot_SFE(sfe_irradiated,  
+                 sample_id = "C06", 
+                 plot_feat = "domain") 
+
+
+
+scater::plotUMAP(sfe_irradiated, 
+                 colour_by = "clust")
+
+sfe_irradiated$clust_character <- sfe_irradiated$clust %>% as.character()
+spanielPlot_SFE(sfe_irradiated[,sample_id == "C06"],  
+                 sample_id = "C07", 
+                 plot_feat = "clust_character", 
+                 ptSizeMin = 0, 
+                 ptSizeMax = 2) 
+
+
+spanielPlot_SFE(sfe_irradiated,  
+                 sample_id = "C07", 
+                 plot_feat = "radiation_field", 
+                 ptSizeMin = 0, 
+                 ptSizeMax = 2) 
+
+
+spanielPlot_SFE(sfe_irradiated,  
+                 sample_id = "C07", 
+                 plot_feat = "radiation_field", 
+                 ptSizeMin = 0, 
+                 ptSizeMax = 2) 
+```
+
+### TO Do! function to make
+
+compare clusters with histological region, number of spots, consistency etc
+
+## Wrap and Save Data
+
+```{r}
+sfe_wrapped <- wrapSFE(sfe)
+saveRDS(sfe_wrapped, "../testData/rObjects/wrapped_sfe.rds")
+
+
+wrapSFE(sfe_control) %>% saveRDS( "../testData/rObjects/wrapped_sfe_control.rds")
+
+wrapSFE(sfe_irradiated) %>% saveRDS( "../testData/rObjects/wrapped_sfe_irradiated.rds")
+
+sfe_single <- sfe_control[,sfe_control$sample_id == "C01"]
+sfe_single %>% 
+  wrapSFE() %>% 
+  saveRDS("../testData/rObjects/wrapped_sfe_single.rds")
+
+```
+
+
+## Unwrap Data
+
+```{r}
+sfe <- readRDS("../testData/rObjects/wrapped_sfe.rds") %>% unwrapSFE()
+sfe <- unwrapSFE(sfe_wrapped)
+
+## check it loads
+p1 <- plotSpatialFeature(sfe, features = "domain",
+                   image_id = "hires", 
+                   maxcell = 5e4, 
+                   ncol = 2, 
+                   sample_id = "C01",
+                   color = "black", linetype = 0,
+                   
+                   ) + theme_classic()
+p1
+
+
+```
+
