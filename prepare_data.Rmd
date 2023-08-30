@@ -89,10 +89,7 @@ pathToTenXOuts <- file.path(dataDir, sampleInfo$Fname, "outs")
 
 ## Import the expression data
 
-The Voyager library Load in data and add in QC metrics
-
-More info at voyager
-
+The SpatialFeatureExperiment library contains an import function for 10X data which takes the path to 10X files and loads the data in as a SpatialFeatureExperiment object
 
 ```{r}
 sfe <- SpatialFeatureExperiment::read10xVisiumSFE(
@@ -182,8 +179,7 @@ p2 <-  Spaniel::spanielPlot_SFE(sfe,
                  sample_id = "C01", 
                  plot_feat = "radiation_field", ptSizeMin = 0, 
                  ptSizeMax = 2) 
-p1
-p2
+p1 + p2
 
 ```
 
@@ -321,9 +317,6 @@ To demonstrate this in the interest of time are going to look at a subset of the
 
 ```{r}
 sfe_single <- sfe_control[,sfe_control$sample_id == "C01"]
-sfe_single %>% 
-  wrapSFE() %>% 
-  saveRDS("rObjects/wrapped_sfe_single.rds")
 ```
 
 
@@ -340,22 +333,18 @@ colnames(colData(sfe_single))
 Then we can define the columns that we want to label in our data for QC plots, groups (clusters or anatomical domains, histological regions) and the experimental conditions in our experiment. 
 
 ```{r}
-grps <- c("clust", "domain", "radiation_field")
+grps <- c("clust_leiden_K_30", "domain", "radiation_field")
 qc <- c("total", "sum", "subsets_mito_percent", "in_tissue")
 exp_cond <- c("condition")
 
-sfe_single <- Spaniel::labelSFE(sfe_single, qc, grps, exp_cond)
+sfe_single <- Spaniel::labelSFE(sfe_single, qc_cols = qc, grp_cols = grps, exp_cond_cols = exp_cond)
 ```
-
-
-
-
 
 As you can see the colData columns are now updated:
 
 
 ```{r}
-colnames(colData(sfe_single))
+colnames(colData(sfe_single))g
 ```
 
 
