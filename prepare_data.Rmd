@@ -308,20 +308,8 @@ sfe_single %>%
 
 To unwrap the function the unwrapSFE function can be used in conjunction with the readRDS pipe.
 
-```{r}
+```{r, eval = FALSE}
 sfe_single <- readRDS("rObjects/wrapped_sfe_single.rds") %>% unwrapSFE()
-
-## check it loads
-p1 <- plotSpatialFeature(sfe_single, features = "domain",
-                   image_id = "hires", 
-                   maxcell = 5e4, 
-                   ncol = 2, 
-                   sample_id = "C01",
-                   color = "black", linetype = 0,
-                   
-                   ) + theme_classic()
-p1
-
 
 ```
 
@@ -345,13 +333,11 @@ qc <- c("total", "sum", "subsets_mito_percent", "in_tissue")
 exp_cond <- c("condition")
 
 sfe_single <- Spaniel::labelSFE(sfe_single, qc, grps, exp_cond)
-
-sfe_single %>% 
-  wrapSFE() %>% 
-  saveRDS("rObjects/wrapped_sfe_single.rds")
-
-
 ```
+
+
+
+
 
 As you can see the colData columns are now updated:
 
@@ -360,3 +346,9 @@ As you can see the colData columns are now updated:
 colnames(colData(sfe_single))
 ```
 
+
+```{r}
+sfe_single %>% 
+  wrapSFE() %>% 
+  saveRDS("rObjects/wrapped_sfe_single.rds")
+```
