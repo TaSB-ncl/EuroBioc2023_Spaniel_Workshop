@@ -285,6 +285,8 @@ compare clusters with histological region, number of spots, consistency etc
 
 ## Wrap and Save Data
 
+SpatialFeatureExperiment uses SpatRaster to store images in the ImgData. This is exported from the terra package and isn't designed to be saved. Instead the objects need be wrapped before saving. They can then be unwrapped before loading back in. We have created functions in Spaniel to do this:
+
 ```{r}
 sfe_wrapped <- Spaniel::wrapSFE(sfe)
 saveRDS(sfe_wrapped, "rObjects/wrapped_sfe.rds")
@@ -297,19 +299,20 @@ wrapSFE(sfe_irradiated) %>% saveRDS( "rObjects/wrapped_sfe_irradiated.rds")
 sfe_single <- sfe_control[,sfe_control$sample_id == "C01"]
 sfe_single %>% 
   wrapSFE() %>% 
-  saveRDS("../testData/rObjects/wrapped_sfe_single.rds")
+  saveRDS("rObjects/wrapped_sfe_single.rds")
 
 ```
 
 
 ## Unwrap Data
 
+To unwrap the function the unwrapSFE function can be used in conjunction with the readRDS pipe.
+
 ```{r}
-sfe <- readRDS("../testData/rObjects/wrapped_sfe.rds") %>% unwrapSFE()
-sfe <- unwrapSFE(sfe_wrapped)
+sfe_single <- readRDS("rObjects/wrapped_sfe_single.rds") %>% unwrapSFE()
 
 ## check it loads
-p1 <- plotSpatialFeature(sfe, features = "domain",
+p1 <- plotSpatialFeature(sfe_single, features = "domain",
                    image_id = "hires", 
                    maxcell = 5e4, 
                    ncol = 2, 
@@ -320,5 +323,40 @@ p1 <- plotSpatialFeature(sfe, features = "domain",
 p1
 
 
+```
+
+## Prepare the data to share
+
+Finally we prepare the data so that it can be loaded into the Shiny Spaniel app. 
+The app allows us to look at QC features, and browse between different clustering solutions as well as different sample conditions.
+Before we share our analysis with the rest of the team we can mark these columns in the metadata using the spaniel helper function "labelSFE".
+
+We can check what we have in the metadata using the following function:
+
+```{r}
+colnames(colData(sfe_single))
+```
+
+Then we can define the columns that we want to label in our data for QC plots, groups (clusters or anatomical domains, histological regions) and the experimental conditions in our experiment. 
+
+```{r}
+grps <- c("clust", "domain", "radiation_field")
+qc <- c("total", "sum", "subsets_mito_percent", "in_tissue")
+exp_cond <- c("condition")
+
+sfe_single <- Spaniel::labelSFE(sfe_single, qc, grps, exp_cond)
+
+sfe_single %>% 
+  wrapSFE() %>% 
+  saveRDS("rObjects/wrapped_sfe_single.rds")
+
+
+```
+
+As you can see the colData columns are now updated:
+
+
+```{r}
+colnames(colData(sfe_single))
 ```
 
