@@ -25,6 +25,7 @@ library(bluster)
 library(tidyverse)
 library(tidyterra)
 library(rjson)
+library(patchwork)
 
 theme_set(theme_bw())
 
@@ -250,6 +251,8 @@ p2 <- Spaniel::spanielPlot_SFE(sfe_control,
                  ptSizeMin = 0, 
                  ptSizeMax = 2) 
 
+p1 + p2
+
 ```
 
 
@@ -267,17 +270,10 @@ p2 <- Spaniel::spanielPlot_SFE(sfe_irradiated,
                  plot_feat = "clust_leiden_K_30", 
                  ptSizeMin = 0, 
                  ptSizeMax = 2) 
-
+p1 + p2
 ```
 
 
-```{r}
-spanielPlot_SFE(sfe_irradiated,  
-                 sample_id = "C06", 
-                 plot_feat = "radiation_field", 
-                 ptSizeMin = 0, 
-                 ptSizeMax = 2) 
-```
 
 ### TO Do! function to make
 
@@ -296,10 +292,7 @@ wrapSFE(sfe_control) %>% saveRDS( "rObjects/wrapped_sfe_control.rds")
 
 wrapSFE(sfe_irradiated) %>% saveRDS( "rObjects/wrapped_sfe_irradiated.rds")
 
-sfe_single <- sfe_control[,sfe_control$sample_id == "C01"]
-sfe_single %>% 
-  wrapSFE() %>% 
-  saveRDS("rObjects/wrapped_sfe_single.rds")
+
 
 ```
 
@@ -308,14 +301,33 @@ sfe_single %>%
 
 To unwrap the function the unwrapSFE function can be used in conjunction with the readRDS pipe.
 
-```{r, eval = FALSE}
-sfe_single <- readRDS("rObjects/wrapped_sfe_single.rds") %>% unwrapSFE()
+```{r}
+sfe_control <- readRDS("rObjects/wrapped_sfe_control.rds") %>% unwrapSFE()
+
+## check it loads
+p1 <- Spaniel::spanielPlot_SFE(sfe_control,  
+                 sample_id = "C01", 
+                 plot_feat = "domain", ptSizeMin = 0, 
+                 ptSizeMax = 2) 
+p1
+
 
 ```
 
 ## Prepare the data to share
 
 Finally we prepare the data so that it can be loaded into the Shiny Spaniel app. 
+To demonstrate this in the interest of time are going to look at a subset of the data. 
+
+```{r}
+sfe_single <- sfe_control[,sfe_control$sample_id == "C01"]
+sfe_single %>% 
+  wrapSFE() %>% 
+  saveRDS("rObjects/wrapped_sfe_single.rds")
+```
+
+
+
 The app allows us to look at QC features, and browse between different clustering solutions as well as different sample conditions.
 Before we share our analysis with the rest of the team we can mark these columns in the metadata using the spaniel helper function "labelSFE".
 
