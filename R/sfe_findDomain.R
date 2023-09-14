@@ -26,62 +26,7 @@ SFToSP <- function(sf){
 }
 
 
-#' Add spot positions to sfe object
-#'
-#' @param sampleName 
-#' @param sfe 
-#'
-#' @return
-#' @export
-#'
-#' @examples
-#' spotToSFE("sample03", sfe)
-#' 
-spotToSFE <- function(sfe, sampleName){
-  ## get spot positions
-  spots_include <- sfe$sample_id == sampleName
-  spots <- sfe[,spots_include] %>% 
-    spatialCoords() %>% 
-    data.frame() 
-  colnames(spots) <- c("Image_X", "Image_Y")
-  
-  ## use scale factors to determine pixel position
-  scaleFactor <- SpatialFeatureExperiment::imgData(sfe)[imgData(sfe)$sample_id 
-                                                        == sampleName, 
-                                                        "scaleFactor"]
-  spots$pixel_x <- spots$Image_X * scaleFactor
-  spots$pixel_y <- spots$Image_Y * scaleFactor
-  spot_sp <- spots  %>%
-    dplyr::select(pixel_x, pixel_y) %>%
-    as.matrix() %>%  
-    sp::SpatialPoints()
-  
- 
-  ## add to sfe
-  annotGeometry(sfe, 
-                sample_id = sampleName, type = "spots") <- SPToSF(spot_sp, 
-                                                             sampleName)
-  
-  
-  return(sfe)
-}
 
-#' Add spots for all all sections
-#'
-#' @param sfe 
-#' @param sampleInfo 
-#'
-#' @return
-#' @export
-#'
-#' @examples
-allSpots <- function(sfe, sampleInfo){
-  
-  for (sample_id in sampleInfo$sample_id){
-    sfe <- spotToSFE(sfe, sample_id)
-  }
-  return(sfe)
-}
 
 
 

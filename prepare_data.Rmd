@@ -113,6 +113,12 @@ sfe <- readRDS("rObjects/sfe.rds")
 
 ## Add metadata and spot positions to data
 
+This function adds some QC metadata to the object, 
+as well as the spot coordinates which are used for plotting. For more details 
+the functions are included 
+R/sfe_prepareSFE.R
+
+
 ```{r}
 sfe <- Spaniel::prepareSFE(sfe, sampleInfo)
 ```
@@ -152,6 +158,8 @@ annoInfo
 ```
 
 The annotations can be loaded in and added to the sfe object using the spaniel function findAllDomains. This creates a separate for each histological domain in the colData of the object. The combineDomains function can then be used to combine the annotations into a single column named domain.
+
+These functions are found in: R/sfe_findDomain.R
 
 ```{r}
 sfe <- Spaniel::findAllDomains(sfe, annoInfo, annotationDir)
@@ -223,66 +231,7 @@ sfe_irradiated <- sfe[,sfe$condition == "irradiated"]
 
 
 The filtered data can then be then be normalised and dimension reduction steps applied and the spots can be clustered according to transcriptomic similarity.  This analysis uses methods taken from the bioconductor Orchestrating Single-Cell Analysis https://bioconductor.org/books/release/OSCA/ work flows. 
-Wrapper function (shown below) to perform this analysis are implemented in Spaniel for convenience. However for a more comprehensive clustering analysis we recommend following the reading the Scran and Bluster documentation which describes each individual step in the analysis in more detail.
-
-
-```{r, eval = FALSE}
-## cluster wrapper function
-preProcess <- function(sfe,
-                          ncomponents = 50,
-                          proportion=0.1,
-                          autoPC = TRUE,
-                          K = 30,
-                          cluster_function = "leiden",
-                          dim_red = "PCA"
-                          ){
-  ## log nomalise data
-  sfe <- scuttle::logNormCounts(sfe)
-  ## highly variable genes
-  dec <- scran::modelGeneVar(sfe)
-  hvgs <- getTopHVGs(dec, prop = proportion)
-  
-  ## run PCA
-  sfe <- scater::runPCA(sfe,
-                        ncomponents,
-                        scale = TRUE, 
-                        subset_row = hvgs)
-  
-  ## automatic calculation of PCA components
-  if(autoPC){
-  sfe <- scran::denoisePCA(sfe, dec, subset.row=hvgs)
-  ncomponents <- ncol(reducedDim(sfe, "PCA"))
-  }
-  
-  ## run UMAP
-  sfe <- scater::runUMAP(sfe,dimred=dim_red)
-  sfe <- clustCells(sfe, K, cluster_function, dim_red)
-  
-  return(sfe)
-}
-
-## cluster wrapper function
-clustCells <- function(sfe, 
-                       K = 30, 
-                       cluster_function = "leiden",
-                       dim_red = "PCA"
-){
-  clust <- scran::clusterCells(sfe, 
-                               BLUSPARAM=NNGraphParam(
-                               cluster.fun=cluster_function, 
-                               k = K), 
-                               use.dimred=dim_red, 
-                               full=TRUE)
-  clustCol <- paste0("clust_", cluster_function, "_K_", K)
-  
-  colData(sfe)[,clustCol] <- clust$clusters
-  return(sfe)
-}
-
-
-
-
-```
+Wrapper function (R/sfe_helper_functions.R) to perform this analysis are implemented in Spaniel for convenience. However for a more comprehensive clustering analysis we recommend following the reading the Scran and Bluster documentation which describes each individual step in the analysis in more detail.
 
 In this example we use a Leidan clustering algorithm as implemented in scran. Leidan is a community detection method. It is important to note that the K parameter is the number of nearest neighbors to use when creating the k nearest neighbor graph. k is related to the resolution of the clustering result, a bigger k will result in lower resolution and vice versa.
 
@@ -297,7 +246,7 @@ sfe_irradiated <- sfe_irradiated %>%
 
 ## Control data
 
-Now we can look at the results of the data both by visualising the clusters on a UMAP plot using plot functions from the scater package and within the spatial context of the tissue section using the spanielPlot function. 
+Now we can look at the results of the data both by visualising the clusters on a UMAP plot using plot functions from the scater package and within the spatial context of the tissue section using the spanielPlot function (R/sfe_PlotFunctions.R). 
 
 ```{r}
 scater::plotUMAP(sfe_control, colour_by = "domain")
@@ -334,11 +283,6 @@ p2 <- Spaniel::spanielPlot_SFE(sfe_irradiated,
 p1 + p2
 ```
 
-
-
-### TO Do! function to make
-
-compare clusters with histological region, number of spots, consistency etc
 
 ## Save the processed data
 
