@@ -71,8 +71,8 @@ sample_id <- samples_short %>%
 
 
 
-condition <- c(rep("Control", 4), rep("irradiated", 4))
-tissue <- c(c(rep("tissue1", 4), rep("tissue2", 4)))
+condition <- c(rep("Control", 2), rep("irradiated", 2))
+tissue <- c(c(rep("tissue1", 2), rep("tissue2", 2)))
 
 sampleInfo <- data.frame(Fname = samples, 
           id = samples_short, 
@@ -91,7 +91,7 @@ pathToTenXOuts <- file.path(dataDir, sampleInfo$Fname, "outs")
 
 The SpatialFeatureExperiment library contains an import function for 10X data which takes the path to 10X files and loads the data in as a SpatialFeatureExperiment object
 
-```{r}
+```{r, eval=FALSE}
 sfe <- SpatialFeatureExperiment::read10xVisiumSFE(
                                       dirs = pathToTenXOuts, 
                                       samples = sampleInfo$Fname, 
@@ -100,7 +100,14 @@ sfe <- SpatialFeatureExperiment::read10xVisiumSFE(
                                       data = "filtered", 
                                       images = "hires",
                                       zero.policy=TRUE)
+saveRDS(sfe, "rObjects/sfe.rds")
+```
 
+The import function is a bit time consuming so save time I have pre-computed a 
+loaded rds file to work from:
+
+```{r}
+sfe <- readRDS("rObjects/sfe.rds")
 ```
 
 
