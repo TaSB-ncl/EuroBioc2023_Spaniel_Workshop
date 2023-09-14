@@ -147,9 +147,6 @@ annoInfo
 The annotations can be loaded in and added to the sfe object using the spaniel function findAllDomains. This creates a separate for each histological domain in the colData of the object. The combineDomains function can then be used to combine the annotations into a single column named domain.
 
 ```{r}
-## to fix
-## factor the domain column so that domain is plotted on top
-
 sfe <- Spaniel::findAllDomains(sfe, annoInfo, annotationDir)
 ## create a column containing all domains
 sfe <- combineDomains(sfe, unique(annoInfo$domain))
@@ -215,19 +212,80 @@ sfe_irradiated <- sfe[,sfe$condition == "irradiated"]
 ```
 
 
-The filtered data can then be normalised using the the "logNormCounts" 
-function from scuttle  
-and the expression of selected genes can be viewed on the histological image.
+## Cluster analysis
+
+
+The filtered data can then be then be normalised and dimension reduction steps applied and the spots can be clustered according to transcriptomic similarity.  This analysis uses methods taken from the bioconductor Orchestrating Single-Cell Analysis https://bioconductor.org/books/release/OSCA/ work flows. 
+Wrapper function (shown below) to perform this analysis are implemented in Spaniel for convenience. However for a more comprehensive clustering analysis we recommend following the reading the Scran and Bluster documentation which describes each individual step in the analysis in more detail.
+
+
+```{r, eval = FALSE}
+## cluster wrapper function
+preProcess <- function(sfe,
+                          ncomponents = 50,
+                          proportion=0.1,
+                          autoPC = TRUE,
+                          K = 30,
+                          cluster_function = "leiden",
+                          dim_red = "PCA"
+                          ){
+  ## log nomalise data
+  sfe <- scuttle::logNormCounts(sfe)
+  ## highly variable genes
+  dec <- scran::modelGeneVar(sfe)
+  hvgs <- getTopHVGs(dec, prop = proportion)
+  
+  ## run PCA
+  sfe <- scater::runPCA(sfe,
+                        ncomponents,
+                        scale = TRUE, 
+                        subset_row = hvgs)
+  
+  ## automatic calculation of PCA components
+  if(autoPC){
+  sfe <- scran::denoisePCA(sfe, dec, subset.row=hvgs)
+  ncomponents <- ncol(reducedDim(sfe, "PCA"))
+  }
+  
+  ## run UMAP
+  sfe <- scater::runUMAP(sfe,dimred=dim_red)
+  sfe <- clustCells(sfe, K, cluster_function, dim_red)
+  
+  return(sfe)
+}
+
+## cluster wrapper function
+clustCells <- function(sfe, 
+                       K = 30, 
+                       cluster_function = "leiden",
+                       dim_red = "PCA"
+){
+  clust <- scran::clusterCells(sfe, 
+                               BLUSPARAM=NNGraphParam(
+                               cluster.fun=cluster_function, 
+                               k = K), 
+                               use.dimred=dim_red, 
+                               full=TRUE)
+  clustCol <- paste0("clust_", cluster_function, "_K_", K)
+  
+  colData(sfe)[,clustCol] <- clust$clusters
+  return(sfe)
+}
+
+
+
+
+```
 
 In this example we use a Leidan clustering algorithm as implemented in scran. Leidan is a community detection method. It is important to note that the K parameter is the number of nearest neighbors to use when creating the k nearest neighbor graph. k is related to the resolution of the clustering result, a bigger k will result in lower resolution and vice versa.
 
-
-A wrapper function to perform this work flow is implemented in Spaniel for convenience. 
-However for a more comprehensive clustering analysis we recommend following the reading the Scran and Bluster documentation which describes each individual step in the analysis in more detail.
-
 ```{r}
-sfe_control <- sfe_control %>% Spaniel::preProcessandClusterSFE()
-sfe_irradiated <- sfe_irradiated %>% Spaniel::preProcessandClusterSFE()
+sfe_control <- sfe_control %>% 
+  Spaniel::preProcess() %>%
+  Spaniel::clustCells(K = 100, cluster_function = "leiden")
+sfe_irradiated <- sfe_irradiated %>% 
+   Spaniel::preProcess() %>% 
+   Spaniel::clustCells(K = 100, cluster_function = "leiden")
 ```
 
 ## Control data
@@ -243,7 +301,7 @@ p1 <- Spaniel::spanielPlot_SFE(sfe_control,
 
 p2 <- Spaniel::spanielPlot_SFE(sfe_control,  
                  sample_id = "C01", 
-                 plot_feat = "clust_leiden_K_30", 
+                 plot_feat = "clust_leiden_K_100", 
                  ptSizeMin = 0, 
                  ptSizeMax = 2) 
 
@@ -263,7 +321,7 @@ p1 <- Spaniel::spanielPlot_SFE(sfe_irradiated,
 
 p2 <- Spaniel::spanielPlot_SFE(sfe_irradiated,  
                  sample_id = "C06", 
-                 plot_feat = "clust_leiden_K_30", 
+                 plot_feat = "clust_leiden_K_100", 
                  ptSizeMin = 0, 
                  ptSizeMax = 2) 
 p1 + p2
@@ -275,40 +333,13 @@ p1 + p2
 
 compare clusters with histological region, number of spots, consistency etc
 
-## Wrap and Save Data
-
-SpatialFeatureExperiment uses SpatRaster to store images in the ImgData. This is exported from the terra package and isn't designed to be saved. Instead the objects need be wrapped before saving. They can then be unwrapped before loading back in. We have created functions in Spaniel to do this:
+## Save the processed data
 
 ```{r}
-sfe_wrapped <- Spaniel::wrapSFE(sfe)
-saveRDS(sfe_wrapped, "rObjects/wrapped_sfe.rds")
-
-
-wrapSFE(sfe_control) %>% saveRDS( "rObjects/wrapped_sfe_control.rds")
-
-wrapSFE(sfe_irradiated) %>% saveRDS( "rObjects/wrapped_sfe_irradiated.rds")
-
-
-
+saveRDS(sfe_control, "rObjects/wrapped_sfe_control.rds")
+saveRDS(sfe_irradiated, "rObjects/wrapped_sfe_irradiated.rds")
 ```
 
-
-## Unwrap Data
-
-To unwrap the function the unwrapSFE function can be used in conjunction with the readRDS pipe.
-
-```{r}
-sfe_control <- readRDS("rObjects/wrapped_sfe_control.rds") %>% unwrapSFE()
-
-## check it loads
-p1 <- Spaniel::spanielPlot_SFE(sfe_control,  
-                 sample_id = "C01", 
-                 plot_feat = "domain", ptSizeMin = 0, 
-                 ptSizeMax = 2) 
-p1
-
-
-```
 
 ## Prepare the data to share
 
@@ -333,7 +364,7 @@ colnames(colData(sfe_single))
 Then we can define the columns that we want to label in our data for QC plots, groups (clusters or anatomical domains, histological regions) and the experimental conditions in our experiment. 
 
 ```{r}
-grps <- c("clust_leiden_K_30", "domain", "radiation_field")
+grps <- c("clust_leiden_K_100", "domain", "radiation_field")
 qc <- c("total", "sum", "subsets_mito_percent", "in_tissue")
 exp_cond <- c("condition")
 
@@ -344,12 +375,25 @@ As you can see the colData columns are now updated:
 
 
 ```{r}
-colnames(colData(sfe_single))g
+colnames(colData(sfe_single))
 ```
 
 
 ```{r}
-sfe_single %>% 
-  wrapSFE() %>% 
-  saveRDS("rObjects/wrapped_sfe_single.rds")
+saveRDS(sfe_single, "rObjects/sfe_single.rds")
 ```
+
+
+## Run Shiny Spaniel!
+
+Now we can launch the shiny app directly from rstudio
+
+![Run shiny spaniel](shiny_spaniel.jpg)
+
+
+```{r}
+Spaniel::runShinySpaniel_SFE()
+```
+
+
+
