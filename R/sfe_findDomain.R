@@ -11,7 +11,7 @@ SPToSF <- function(sp, sampleName){
   sf <- sp::geometry(sp) %>% as("sf")
   sf$sample_id <- sampleName
   return(sf)
-}
+ }
 
 #' Convert sf object to sp object
 #'
@@ -56,11 +56,11 @@ spotToSFE <- function(sfe, sampleName){
     as.matrix() %>%  
     sp::SpatialPoints()
   
-  
+ 
   ## add to sfe
   annotGeometry(sfe, 
                 sample_id = sampleName, type = "spots") <- SPToSF(spot_sp, 
-                                                                  sampleName)
+                                                             sampleName)
   
   
   return(sfe)
@@ -202,7 +202,7 @@ domainToSFE <-  function(imgFile,
                          domainName, 
                          sampleName, 
                          sfe, cln = 3, fll = 12){
-  # convert spot coordinates back to sp
+ # convert spot coordinates back to sp
   spot_sf <- annotGeometry(sfe, type = "spots", sample_id = sampleName)
   spot_sp <- SFToSP(spot_sf)
   
@@ -211,8 +211,8 @@ domainToSFE <-  function(imgFile,
   
   ## add to sfe geometries
   annotGeometry(sfe,
-                sample_id = sampleName,
-                type = domainName) <- SPToSF(domain_sp, sampleName)
+               sample_id = sampleName,
+               type = domainName) <- SPToSF(domain_sp, sampleName)
   
   ## add to coldata
   sfe <- domainToColData(domain_sp, spot_sp, sfe, domainName, sampleName)
@@ -261,7 +261,6 @@ findAllDomains <- function(sfe, annoInfo, annotationDir, cln = 3, fll = 12){
   return(sfe)
   
 }
-
 
 
 
