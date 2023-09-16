@@ -34,8 +34,8 @@ theme_set(theme_bw())
 
 ```
 
+# PART 1 - About the data
 
-## PART 1 - Annotating image data and compare with clustering results
 
 ## Sample Metadata
 
@@ -149,7 +149,7 @@ We currently use both sp and sf in our package but we are currently working towa
 https://github.com/r-spatial/sf/wiki/migrating
 
 
-## Add spot positions to data
+## Add spot positions to sfe
 
 This function adds the spot positions to the as the spot coordinates which are used for plotting. For more details 
 the functions are included 
@@ -160,6 +160,7 @@ R/sfe_prepareSFE.R
 sfe <- Spaniel::prepareSFE(sfe, sampleInfo)
 ```
 
+# PART 2 - Annotating image data and compare with clustering results
 
 ## Add Image annotations
 
@@ -389,7 +390,7 @@ saveRDS(sfe_irradiated, "rObjects/wrapped_sfe_irradiated.rds")
 
 
 
-## PART 2 - Share analysed project
+# PART 3 - Share analysed project
 ## Prepare the data to share
 
 Finally we prepare the data so that it can be loaded into the Shiny Spaniel app. 
