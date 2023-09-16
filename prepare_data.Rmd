@@ -4,6 +4,9 @@ output: html_document
 date: '2023-07-28'
 ---
 
+# PROJECT SETUP
+
+
 ```{r setup, include=FALSE}
 ## using a development version of Spaniel
 #devtools::install_github("TaSB-ncl/Spaniel",
@@ -32,6 +35,8 @@ theme_set(theme_bw())
 ```
 
 
+## PART 1 - Annotating image data and compare with clustering results
+
 ## Sample Metadata
 
 The data being used in this workflow is taken from "Spatial Gene Expression 
@@ -46,11 +51,19 @@ This was a pilot experiment to determine whether spatial transcriptomics
 could provide useful insights in this context. 
 
 
+The data is included in the posit cloud workshop but if you are running this 
+workshop elsewhere you can down load it from  [dropbox](https://www.dropbox.com/sh/pw2jaxczyvc150r/AABXQb9VF3ozLHASHBzjVEJWa?dl=0) 
+
+
+
 ### Experimental Design:
+
+A subset of the data is used for this workshop and it includes:
+
 2 samples
 2 conditions - irradiated heart and control
-4 adjacent sections taken from each tissue block (sample)
-8 sections in total
+2 adjacent sections taken from each tissue block (sample)
+4 sections in total
 
 
 The sample metadata is summarised below:
@@ -82,8 +95,15 @@ sampleInfo <- data.frame(Fname = samples,
           )
 
 sampleInfo
+```
 
 
+## Spaceranger
+
+The data is exported from the 10X pipeline [Spaceranger](https://support.10xgenomics.com/spatial-gene-expression/software/pipelines/latest/what-is-space-ranger) and it conists of the aligned and quantified reads for the transcriptomics data and the processed image data.
+
+
+```{r}
 pathToTenXOuts <- file.path(dataDir, sampleInfo$Fname, "outs")
 ```
 
@@ -92,29 +112,38 @@ pathToTenXOuts <- file.path(dataDir, sampleInfo$Fname, "outs")
 The SpatialFeatureExperiment library contains an import function for 10X data which takes the path to 10X files and loads the data in as a SpatialFeatureExperiment object
 
 ```{r, eval=FALSE}
-# sfe <- SpatialFeatureExperiment::read10xVisiumSFE(
-#                                       dirs = pathToTenXOuts, 
-#                                       samples = sampleInfo$Fname, 
-#                                       sample_id = sampleInfo$sample_id, 
-#                                       type = "sparse", 
-#                                       data = "filtered", 
-#                                       images = "hires",
-#                                       zero.policy=TRUE)
-# saveRDS(sfe, "rObjects/sfe.rds")
+sfe <- SpatialFeatureExperiment::read10xVisiumSFE(
+                                      dirs = pathToTenXOuts,
+                                      samples = sampleInfo$Fname,
+                                      sample_id = sampleInfo$sample_id,
+                                      type = "sparse",
+                                      data = "filtered",
+                                      images = "hires",
+                                      zero.policy=TRUE)
+saveRDS(sfe, "rObjects/sfe.rds")
 ```
 
 The import function is a bit time consuming so save time I have pre-computed a 
-loaded rds file to work from:
+loaded data rds file which can be imported here:
+
 
 ```{r}
 sfe <- readRDS("rObjects/sfe.rds")
+sfe
 ```
 
 
-## Add metadata and spot positions to data
+## SpatialFeatureExperiment Class
 
-This function adds some QC metadata to the object, 
-as well as the spot coordinates which are used for plotting. For more details 
+Built of SpatialExperiment Class (which is built on SingleCellExperiment)
+
+Incorporates geometries and geometry operations with the sf package
+
+![SpatialExperimentFeature Class](spatialExperimentFeature.png)
+
+## Add spot positions to data
+
+This function adds the spot positions to the as the spot coordinates which are used for plotting. For more details 
 the functions are included 
 R/sfe_prepareSFE.R
 
@@ -129,7 +158,10 @@ sfe <- Spaniel::prepareSFE(sfe, sampleInfo)
 Different regions of the heart were annotated using the imaging software Amira. These could also be created using Photoshop or other imaging software. Each annotation was then exported as a separate layer. The annotation images are the same size as the high resolution images exported from 
 
 For example this image shows the left ventricle in sample "C01":
-![Left Ventricle sample C01](../testData/annotation_images/C01_left-ventricle.jpg)
+
+![C01](testData/results/results_C01_QUB_002_B1NP_Control_Results/outs/spatial/tissue_hires_image.png)
+
+![Left Ventricle sample C01](testData/annotation_images/C01_left-ventricle.jpg)
 
 The annotation_images directory 
 
@@ -140,6 +172,12 @@ annotations <- list.files(annotationDir)
 annoInfo <- data.frame(sample_id = gsub("_.*", "", annotations) ,
   domain = gsub(".*_", "", annotations) %>% 
     gsub("\\.jpg", "", .),jpg = annotations) 
+
+
+
+annoInfo
+
+
 ```
 
 ## Add radiation field
@@ -161,6 +199,17 @@ The annotations can be loaded in and added to the sfe object using the spaniel f
 
 These functions are found in: R/sfe_findDomain.R
 
+For each of the images the functions:
+
+1) Load the image
+2) Clean the image to remove noise
+3) Generate the boundary coordinates of the image
+4) Convert the domain coordinates to sp (spatial polygon)
+5) Check whether spot falls inside the domain (add to metadata in sfe)
+6) Convert domain sp to sf and store within sfe object
+
+
+
 ```{r}
 sfe <- Spaniel::findAllDomains(sfe, annoInfo, annotationDir)
 ## create a column containing all domains
@@ -175,8 +224,6 @@ sfe$radiation_field <- colData(sfe) %>%
   pull(radiation_field)
 
 ```
-
-
 
 
 ## The domains can now be visualised on the histological data
@@ -249,19 +296,19 @@ sfe_irradiated <- sfe_irradiated %>%
 Now we can look at the results of the data both by visualising the clusters on a UMAP plot using plot functions from the scater package and within the spatial context of the tissue section using the spanielPlot function (R/sfe_PlotFunctions.R). 
 
 ```{r}
-scater::plotUMAP(sfe_control, colour_by = "domain")
-p1 <- Spaniel::spanielPlot_SFE(sfe_control,  
+
+p1_control <- Spaniel::spanielPlot_SFE(sfe_control,  
                  sample_id = "C01", 
                  plot_feat = "domain", ptSizeMin = 0, 
                  ptSizeMax = 2) 
 
-p2 <- Spaniel::spanielPlot_SFE(sfe_control,  
+p2_control <- Spaniel::spanielPlot_SFE(sfe_control,  
                  sample_id = "C01", 
                  plot_feat = "clust_leiden_K_100", 
                  ptSizeMin = 0, 
                  ptSizeMax = 2) 
 
-p1 + p2
+p1_control + p2_control
 
 ```
 
@@ -270,28 +317,66 @@ p1 + p2
 
 ```{r}
 scater::plotUMAP(sfe_irradiated, colour_by = "domain")
-p1 <- Spaniel::spanielPlot_SFE(sfe_irradiated,  
+p1_irradiated <- Spaniel::spanielPlot_SFE(sfe_irradiated,  
                  sample_id = "C06", 
                  plot_feat = "domain", ptSizeMin = 0, 
                  ptSizeMax = 2) 
 
-p2 <- Spaniel::spanielPlot_SFE(sfe_irradiated,  
+p2_irradiated <- Spaniel::spanielPlot_SFE(sfe_irradiated,  
                  sample_id = "C06", 
                  plot_feat = "clust_leiden_K_100", 
                  ptSizeMin = 0, 
                  ptSizeMax = 2) 
-p1 + p2
+p1_irradiated + p2_irradiated
 ```
+
+## Trying a lower resolution
+
+```{r}
+sfe_control <- sfe_control %>% 
+  Spaniel::clustCells(K = 75, cluster_function = "leiden")
+sfe_irradiated <- sfe_irradiated %>% 
+   Spaniel::clustCells(K = 75, cluster_function = "leiden")
+```
+
+```{r}
+p3_control <- Spaniel::spanielPlot_SFE(sfe_control,  
+                 sample_id = "C01", 
+                 plot_feat = "clust_leiden_K_75", 
+                 ptSizeMin = 0, 
+                 ptSizeMax = 2) 
+
+
+
+p3_irradiated <- Spaniel::spanielPlot_SFE(sfe_irradiated,  
+                 sample_id = "C06", 
+                 plot_feat = "clust_leiden_K_75", 
+                 ptSizeMin = 0, 
+                 ptSizeMax = 2)
+```
+
+
+```{r}
+p1_control + p2_control + p3_control
+```
+
+
+```{r}
+p1_irradiated + p2_irradiated + p3_irradiated
+```
+
 
 
 ## Save the processed data
 
 ```{r, eval = FALSe}
-# saveRDS(sfe_control, "rObjects/wrapped_sfe_control.rds")
-# saveRDS(sfe_irradiated, "rObjects/wrapped_sfe_irradiated.rds")
+saveRDS(sfe_control, "rObjects/wrapped_sfe_control.rds")
+saveRDS(sfe_irradiated, "rObjects/wrapped_sfe_irradiated.rds")
 ```
 
 
+
+## PART 2 - Share analysed project
 ## Prepare the data to share
 
 Finally we prepare the data so that it can be loaded into the Shiny Spaniel app. 
@@ -300,7 +385,6 @@ To demonstrate this in the interest of time are going to look at a subset of the
 ```{r}
 sfe_single <- sfe_control[,sfe_control$sample_id == "C01"]
 ```
-
 
 
 The app allows us to look at QC features, and browse between different clustering solutions as well as different sample conditions.
@@ -315,7 +399,7 @@ colnames(colData(sfe_single))
 Then we can define the columns that we want to label in our data for QC plots, groups (clusters or anatomical domains, histological regions) and the experimental conditions in our experiment. 
 
 ```{r}
-grps <- c("clust_leiden_K_100", "domain", "radiation_field")
+grps <- c("clust_leiden_K_100", "clust_leiden_K_75", "domain", "radiation_field")
 qc <- c("total", "sum", "subsets_mito_percent", "in_tissue")
 exp_cond <- c("condition")
 
@@ -331,7 +415,7 @@ colnames(colData(sfe_single))
 
 
 ```{r, eval = FALSE}
-#saveRDS(sfe_single, "rObjects/sfe_single.rds")
+saveRDS(sfe_single, "rObjects/sfe_single.rds")
 ```
 
 
