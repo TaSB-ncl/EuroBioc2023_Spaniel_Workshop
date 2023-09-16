@@ -140,6 +140,14 @@ Built of SpatialExperiment Class (which is built on SingleCellExperiment)
 Incorporates geometries and geometry operations with the sf package
 
 ![SpatialExperimentFeature Class](spatialExperimentFeature.png)
+## SP and SF
+
+sp and sf are to classes used in Spatial Analysis. sp is the older of the 2 and uses S4 objects, it has been around for 20 years 
+but there is a move towards sf (simple feature) that sf uses S3 classes. 
+
+We currently use both sp and sf in our package but we are currently working towards migrating to 100% sf workflow  
+https://github.com/r-spatial/sf/wiki/migrating
+
 
 ## Add spot positions to data
 
@@ -199,6 +207,10 @@ The annotations can be loaded in and added to the sfe object using the spaniel f
 
 These functions are found in: R/sfe_findDomain.R
 
+
+
+
+
 For each of the images the functions:
 
 1) Load the image
@@ -207,6 +219,7 @@ For each of the images the functions:
 4) Convert the domain coordinates to sp (spatial polygon)
 5) Check whether spot falls inside the domain (add to metadata in sfe)
 6) Convert domain sp to sf and store within sfe object
+
 
 
 
