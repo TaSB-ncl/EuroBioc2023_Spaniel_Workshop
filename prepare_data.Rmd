@@ -1,5 +1,5 @@
 ---
-title: "Prepare Data"
+title: "Euro BioC 2023 - SPANIEL"
 output: html_document
 date: '2023-07-28'
 ---
@@ -204,13 +204,9 @@ annoInfo$radiation_field <- ifelse(annoInfo$domain %in% c("left-ventricle",
 annoInfo
 ```
 
-The annotations can be loaded in and added to the sfe object using the spaniel function findAllDomains. This creates a separate for each histological domain in the colData of the object. The combineDomains function can then be used to combine the annotations into a single column named domain.
+The annotations can be loaded in and added to the sfe object using the spaniel function findAllDomains.
 
 These functions are found in: R/sfe_findDomain.R
-
-
-
-
 
 For each of the images the functions:
 
@@ -222,9 +218,7 @@ For each of the images the functions:
 6) Convert domain sp to sf and store within sfe object
 
 
-
-
-```{r}
+```{r, fig.show = 'hide', results = FALSE}
 sfe <- Spaniel::findAllDomains(sfe, annoInfo, annotationDir)
 ## create a column containing all domains
 sfe <- combineDomains(sfe, unique(annoInfo$domain))
@@ -309,7 +303,7 @@ sfe_irradiated <- sfe_irradiated %>%
 
 Now we can look at the results of the data both by visualising the clusters on a UMAP plot using plot functions from the scater package and within the spatial context of the tissue section using the spanielPlot function (R/sfe_PlotFunctions.R). 
 
-```{r}
+```{r, fig.width = 10}
 
 p1_control <- Spaniel::spanielPlot_SFE(sfe_control,  
                  sample_id = "C01", 
@@ -329,7 +323,7 @@ p1_control + p2_control
 
 ## irradiated data
 
-```{r}
+```{r, fig.width = 10}
 scater::plotUMAP(sfe_irradiated, colour_by = "domain")
 p1_irradiated <- Spaniel::spanielPlot_SFE(sfe_irradiated,  
                  sample_id = "C06", 
@@ -353,7 +347,7 @@ sfe_irradiated <- sfe_irradiated %>%
    Spaniel::clustCells(K = 75, cluster_function = "leiden")
 ```
 
-```{r}
+```{r, fig.width = 15}
 p3_control <- Spaniel::spanielPlot_SFE(sfe_control,  
                  sample_id = "C01", 
                  plot_feat = "clust_leiden_K_75", 
@@ -370,12 +364,12 @@ p3_irradiated <- Spaniel::spanielPlot_SFE(sfe_irradiated,
 ```
 
 
-```{r}
+```{r, fig.width = 15}
 p1_control + p2_control + p3_control
 ```
 
 
-```{r}
+```{r, fig.width = 15}
 p1_irradiated + p2_irradiated + p3_irradiated
 ```
 
@@ -383,9 +377,9 @@ p1_irradiated + p2_irradiated + p3_irradiated
 
 ## Save the processed data
 
-```{r, eval = FALSe}
-saveRDS(sfe_control, "rObjects/wrapped_sfe_control.rds")
-saveRDS(sfe_irradiated, "rObjects/wrapped_sfe_irradiated.rds")
+```{r}
+#saveRDS(sfe_control, "rObjects/wrapped_sfe_control.rds")
+#saveRDS(sfe_irradiated, "rObjects/wrapped_sfe_irradiated.rds")
 ```
 
 
@@ -410,7 +404,7 @@ We can check what we have in the metadata using the following function:
 colnames(colData(sfe_single))
 ```
 
-Then we can define the columns that we want to label in our data for QC plots, groups (clusters or anatomical domains, histological regions) and the experimental conditions in our experiment. 
+Then we can define the columns that we want to label in our data for QC plots, groups (clusters or histological regions) and the experimental conditions in our experiment. 
 
 ```{r}
 grps <- c("clust_leiden_K_100", "clust_leiden_K_75", "domain", "radiation_field")
@@ -440,7 +434,7 @@ Now we can launch the shiny app directly from rstudio
 ![Run shiny spaniel](shiny_spaniel.jpg)
 
 
-```{r}
+```{r, eval = FALSE}
 Spaniel::runShinySpaniel_SFE()
 ```
 
